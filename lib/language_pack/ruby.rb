@@ -94,6 +94,8 @@ class LanguagePack::Ruby < LanguagePack::Base
         build_bundler
         create_database_yml
         install_binaries
+        install_deft
+        install_deft_dependencies
         run_assets_precompile_rake_task
       end
       super
@@ -450,6 +452,13 @@ WARNING
     end
   end
 
+  # install deft via npm
+  def install_deft
+    instrument 'ruby.install_deft' do
+      `npm install -g deft`
+    end
+  end
+
   # remove `vendor/bundle` that comes from the git repo
   # in case there are native ext.
   # users should be using `bundle pack` instead.
@@ -686,7 +695,11 @@ params = CGI.parse(uri.query || "")
   # @note execjs will blow up if no JS RUNTIME is detected and is loaded.
   # @return [Array] the node.js binary path if we need it or an empty Array
   def add_node_js_binary
-    bundler.has_gem?('execjs') && !node_js_installed? ? [NODE_JS_BINARY_PATH] : []
+    node_js_required? && !node_js_installed? ? [NODE_JS_BINARY_PATH] : []
+  end
+
+  def node_js_required?
+    bundler.has_gem?('execjs') || File.exists?('package.json') || File.exists?('deft.json')
   end
 
   def node_bp_bin_path
@@ -723,6 +736,14 @@ params = CGI.parse(uri.query || "")
       msg << "https://devcenter.heroku.com/articles/pre-provision-database\n"
     end
     error msg
+  end
+
+  def install_deft_dependencies
+    instrument 'ruby.install_deft_dependencies' do
+      topic "Installing dependencies w/ deft"
+      `deft`
+      return $?.success?
+    end
   end
 
   def bundler_cache
